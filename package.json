@@ -1,0 +1,24 @@
+{
+  "name": "viny",
+  "version": "0.1.0",
+  "description": "A tiny functional-style validator",
+  "main": "viny.js",
+  "scripts": {
+    "test": "mocha --recursive test",
+    "cover": "nyc npm t"
+  },
+  "keywords": [
+    "validator",
+    "validation",
+    "validate",
+    "viny",
+    "functional"
+  ],
+  "author": "rmdm",
+  "license": "MIT",
+  "devDependencies": {
+    "assert-match": "^1.1.1",
+    "mocha": "^5.2.0",
+    "nyc": "^12.0.2"
+  }
+}
