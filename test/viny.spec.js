@@ -1018,8 +1018,7 @@ describe('viny', function () {
                 })
 
                 assert.deepStrictEqual(validation(
-                    { a: [ 5, 10, 5, 15 ] },
-                    { greedy: true }
+                    { a: [ 5, 10, 5, 15 ] }
                 ), null)
             })
 
@@ -1033,8 +1032,7 @@ describe('viny', function () {
                 })
 
                 assert.deepStrictEqual(validation(
-                    { a: [ 15, 10, 25, 15 ] },
-                    { greedy: true }
+                    { a: [ 15, 10, 25, 15 ] }
                 ), [
                     { path: [ 'a', '0' ], error: 'gte_10' },
                     { path: [ 'a', '1' ], error: 'gte_10' },
