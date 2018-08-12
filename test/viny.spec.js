@@ -814,8 +814,8 @@ describe('viny', function () {
             it('returns all messages when validations failed', function () {
 
                 const eq10 = viny(10, { label: 'not_10' })
-                const e120 = viny(20)
-                const validation = viny.or(eq10, e120)
+                const eq20 = viny(20)
+                const validation = viny.or(eq10, eq20)
 
                 assert.deepStrictEqual(validation(15),[
                     { path: [], error: 'not_10' },
@@ -823,7 +823,21 @@ describe('viny', function () {
                 ])
             })
 
-            it('returns all messages even when nested', function () {
+            it('returns all error messages when nested even without greedy option', function () {
+
+                const lt10 = viny(x => x < 10, { label: 'gt_10' })
+                const lt20 = viny(x => x < 20, { label: 'gt_20' })
+                const validation = viny({
+                    a: viny.or(lt10, lt20),
+                })
+
+                assert.deepStrictEqual(validation({a: 25}), [
+                    { path: [ 'a' ], error: 'gt_10' },
+                    { path: [ 'a' ], error: 'gt_20' },
+                ])
+            })
+
+            it('returns all messages when nested with greedy option', function () {
 
                 const lt10 = viny(x => x < 10, { label: 'gt_10' })
                 const lt20 = viny(x => x < 20, { label: 'gt_20' })

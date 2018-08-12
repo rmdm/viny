@@ -43,16 +43,29 @@ function and (...validations) {
 
 function or (...validations) {
     return partial(function (arg, contextualOptions) {
-        let errors = []
+
+        const innerInvalidities = []
+
+        contextualOptions = contextualOptions || {}
+        const invalidities = contextualOptions.invalidities || []
+        contextualOptions = Object.assign({}, { contextualOptions }, {
+            invalidities: innerInvalidities,
+        })
+
+        let nErrors = 0
         for (let validation of validations) {
             const err = validate(validation, {}, arg, contextualOptions)
             if (err) {
-                errors.push(err)
+                nErrors++
             }
         }
-        return errors.length === validations.length
-            ? Array.prototype.concat.apply([], errors)
-            : null
+
+        if (nErrors < validations.length) {
+            return null
+        } else {
+            Array.prototype.push.apply(invalidities, innerInvalidities)
+            return invalidities
+        }
     })
 }
 
