@@ -96,11 +96,11 @@ describe('viny', function () {
                 [ { path: [ 'b' ], error: 'property_missing' } ])
         })
 
-        it('returns "validation_missing" when arg has more filds than '
+        it('returns "property_unexpected" when arg has more filds than '
             + 'validation object', function () {
 
             assert.deepStrictEqual(viny({ a: 10 })({ a: 10, b: 11 }),
-                [ { path: [ 'b' ], error: 'validation_missing' } ])
+                [ { path: [ 'b' ], error: 'property_unexpected' } ])
         })
 
         it('return "invalid" when arg does not match deep validation fn',
@@ -506,11 +506,11 @@ describe('viny', function () {
                 [ { path: [ 'b' ], error: 'property_missing' } ])
         })
 
-        it('returns "validation_missing" when arg has more filds than '
+        it('returns "property_unexpected" when arg has more filds than '
             + 'validation object', function () {
 
             assert.deepStrictEqual(viny.errors({ a: 10 }, { a: 10, b: 11 }),
-                [ { path: [ 'b' ], error: 'validation_missing' } ])
+                [ { path: [ 'b' ], error: 'property_unexpected' } ])
         })
 
         it('return "invalid" when arg does not match deep validation fn',
@@ -654,7 +654,7 @@ describe('viny', function () {
                 { path: [ 'obj', 'c' ], error: 'invalid' },
                 { path: [ 'obj', 'x' ], error: 'not_a_number' },
                 { path: [ 'obj' ], error: 'failed' },
-                { path: [ 'f' ], error: 'validation_missing' },
+                { path: [ 'f' ], error: 'property_unexpected' },
                 { path: [ 'e' ], error: 'property_missing' },
             ])
         })
@@ -697,7 +697,7 @@ describe('viny', function () {
                         a: 10, b: false, c: 'abc', x: '10',
                     }
                 },
-                { path: [ 'f' ], error: 'validation_missing', value: 11 },
+                { path: [ 'f' ], error: 'property_unexpected', value: 11 },
                 { path: [ 'e' ], error: 'property_missing' },
             ])
         })
@@ -777,6 +777,39 @@ describe('viny', function () {
                     { path: [ 'a' ], error: 'gt_10' },
                 ])
             })
+
+            it('returns single error not related to the and branch',
+                function () {
+
+                const validation = viny({
+                    a: 10,
+                    b: viny.and(
+                        viny.and(x => x > 0, x => x < 20),
+                        viny.and(x => x > 10, x => x < 30),
+                    )
+                })
+
+                assert.deepStrictEqual(validation({ a: 5, b: 15 }, { greedy: true }),
+                    [ { path: [ 'a' ], error: 'invalid' } ])
+            })
+
+            it('returns several not related errors',
+                function () {
+
+                const validation = viny({
+                    a: 10,
+                    b: viny.or(
+                        viny.and(x => x > 0, x => x < 10),
+                        viny.and(x => x > 20, x => x < 30),
+                    )
+                })
+
+                assert.deepStrictEqual(validation({ a: 5, b: 15 }, { greedy: true }), [
+                    { path: [ 'a' ], error: 'invalid' },
+                    { path: [ 'b' ], error: 'invalid' },
+                    { path: [ 'b' ], error: 'invalid' },
+                ])
+            })
         })
     })
 
@@ -800,7 +833,7 @@ describe('viny', function () {
                 assert.deepStrictEqual(validation(20), null)
             })
 
-            it('returns "invalid" when some validations failed', function () {
+            it('returns "invalid" when all validations failed', function () {
 
                 const eq10 = viny(10)
                 const validation = viny.or(eq10, 20)
@@ -823,7 +856,8 @@ describe('viny', function () {
                 ])
             })
 
-            it('returns all error messages when nested even without greedy option', function () {
+            it('returns all error messages when nested even without greedy '
+                + ' option', function () {
 
                 const lt10 = viny(x => x < 10, { label: 'gt_10' })
                 const lt20 = viny(x => x < 20, { label: 'gt_20' })
@@ -837,7 +871,8 @@ describe('viny', function () {
                 ])
             })
 
-            it('returns all messages when nested with greedy option', function () {
+            it('returns all messages when nested with greedy option',
+                function () {
 
                 const lt10 = viny(x => x < 10, { label: 'gt_10' })
                 const lt20 = viny(x => x < 20, { label: 'gt_20' })
@@ -849,6 +884,33 @@ describe('viny', function () {
                     { path: [ 'a' ], error: 'gt_10' },
                     { path: [ 'a' ], error: 'gt_20' },
                 ])
+            })
+
+            it('it returns null when at least one validation passed',
+                function () {
+
+                const validation = viny.or(
+                    { a: 10 },
+                    { b: 11 },
+                    { a: 10, b: 11 },
+                )
+
+                assert.deepStrictEqual(validation({ b: 11 }), null)
+            })
+
+            it('returns single error not related to the or branch',
+                function () {
+
+                const validation = viny({
+                    a: 10,
+                    b: viny.or(
+                        viny.and(x => x > 0, x => x < 10),
+                        viny.and(x => x > 20, x => x < 30),
+                    )
+                })
+
+                assert.deepStrictEqual(validation({ a: 5, b: 25 }, { greedy: true }),
+                    [ { path: [ 'a' ], error: 'invalid' } ])
             })
         })
     })
@@ -896,6 +958,17 @@ describe('viny', function () {
 
                 assert.deepStrictEqual(validation({ a: 10 }),
                     [ { path: [ 'a' ], error: 'invalid' } ])
+            })
+
+            it('returns unrelated error when nested with errors', function () {
+
+                const validation = viny({
+                    x: 10,
+                    a: viny.not(10),
+                })
+
+                assert.deepStrictEqual(validation({ x: 11, a: 11 }, { greedy: true }),
+                    [ { path: [ 'x' ], error: 'invalid' } ])
             })
         })
     })
@@ -949,8 +1022,8 @@ describe('viny', function () {
                 assert.deepStrictEqual(validation({ a: [ 5, 6, 7 ] }), null)
             })
 
-            it('returns error for nested array when several elements are invalid',
-                function () {
+            it('returns error for nested array when several elements are '
+                + ' invalid', function () {
 
                 const lt10 = viny(x => x < 10, { label: 'gte_10' })
 
@@ -975,6 +1048,26 @@ describe('viny', function () {
                     { a: [ 5, 10, 5, 15 ] },
                     { greedy: true }
                 ), [
+                    { path: [ 'a', '1' ], error: 'gte_10' },
+                    { path: [ 'a', '3' ], error: 'gte_10' },
+                ])
+            })
+
+            it('returns multiple unrelated errors for nested array when several elements '
+                + ' are invalid end greedy option passed', function () {
+
+                const lt10 = viny(x => x < 10, { label: 'gte_10' })
+
+                const validation = viny({
+                    x: 10,
+                    a: viny.every(lt10),
+                })
+
+                assert.deepStrictEqual(validation(
+                    { x: 11, a: [ 5, 10, 5, 15 ] },
+                    { greedy: true }
+                ), [
+                    { path: [ 'x' ], error: 'invalid' },
                     { path: [ 'a', '1' ], error: 'gte_10' },
                     { path: [ 'a', '3' ], error: 'gte_10' },
                 ])
@@ -1052,6 +1145,79 @@ describe('viny', function () {
                     { path: [ 'a', '1' ], error: 'gte_10' },
                     { path: [ 'a', '2' ], error: 'gte_10' },
                     { path: [ 'a', '3' ], error: 'gte_10' },
+                ])
+            })
+
+            it('it returns null when at least one item passes validation',
+                function () {
+
+                const validation = viny.some({ b: 11 })
+
+                assert.deepStrictEqual(validation([
+                    { a: 10 },
+                    { b: 11 },
+                    { a: 10, b: 11 },
+                ]), null)
+            })
+
+            it('it returns all errors when no item passes validation',
+                function () {
+
+                const validation = viny.some({ b: 1 })
+
+                assert.deepStrictEqual(validation([
+                    { a: 10 },
+                    { b: 11 },
+                    { a: 10, b: 11 },
+                ]), [
+                    { path: [ '0', 'a' ], error: 'property_unexpected' },
+                    { path: [ '1', 'b' ], error: 'invalid' },
+                    { path: [ '2', 'a' ], error: 'property_unexpected' },
+                ])
+            })
+
+            it('it returns all errors when no item passes validation',
+                function () {
+
+                const validation = viny({
+                    a: 11,
+                    b: viny.some({ b: 1 }),
+                })
+
+                assert.deepStrictEqual(validation({
+                    a: 10,
+                    b: [
+                        { a: 10 },
+                        { b: 11 },
+                        { a: 10, b: 11 },
+                    ]
+                }, { greedy: true }), [
+                    { path: [ 'a' ], error: 'invalid' },
+                    { path: [ 'b', '0', 'a' ], error: 'property_unexpected' },
+                    { path: [ 'b', '0', 'b' ], error: 'property_missing' },
+                    { path: [ 'b', '1', 'b' ], error: 'invalid' },
+                    { path: [ 'b', '2', 'a' ], error: 'property_unexpected' },
+                    { path: [ 'b', '2', 'b' ], error: 'invalid' },
+                ])
+            })
+
+            it('it returns unrelated errors when no item passes validation',
+                function () {
+
+                const validation = viny({
+                    v: 11,
+                    x: viny.some({ b: 10 })
+                })
+
+                assert.deepStrictEqual(validation({
+                    v: 50,
+                    x: [
+                        { a: 10 },
+                        { b: 10 },
+                        { a: 10, b: 11 },
+                    ]
+                }, { greedy: true }), [
+                    { path: [ 'v' ], error: 'invalid' },
                 ])
             })
         })

@@ -22,7 +22,7 @@ describe('readme', function () {
 
         assert.deepStrictEqual(viny.errors(userSchema, user, { greedy: true, values: true }), [
             { path: [ 'avatar' ], error: 'not_a_buffer', value: null },
-            { path: [ 'achievements', '0', 'kind' ], error: 'validation_missing', value: 'beginner' },
+            { path: [ 'achievements', '0', 'kind' ], error: 'property_unexpected', value: 'beginner' },
             { path: [ 'achievements', '0', 'level' ], error: 'invalid', value: '' },
             { path: [ 'achievements', '0', 'type' ], error: 'property_missing' },
         ])

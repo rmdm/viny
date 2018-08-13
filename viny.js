@@ -1,4 +1,4 @@
-const VALIDATION_MISSING = 'validation_missing'
+const PROPERTY_UNEXPECTED = 'property_unexpected'
 const PROPERTY_MISSING = 'property_missing'
 const INVALID = 'invalid'
 const NOT_AN_ARRAY = 'not_an_array'
@@ -54,8 +54,8 @@ function or (...validations) {
 
         let nErrors = 0
         for (let validation of validations) {
-            const err = validate(validation, {}, arg, contextualOptions)
-            if (err) {
+            const errors = validate(validation, {}, arg, contextualOptions)
+            if (errors) {
                 nErrors++
             }
         }
@@ -72,19 +72,23 @@ function or (...validations) {
 function not (validation) {
     return partial(function (arg, contextualOptions) {
 
-        const result = probe(validation, arg, contextualOptions)
+        contextualOptions = contextualOptions || {}
 
-        if (result.probeInvalidities.length) {
+        const originalInvalidities = contextualOptions.invalidities || []
+        const values = contextualOptions.values || false
+        const depth = contextualOptions.depth || 0
+
+        contextualOptions = Object.assign({}, contextualOptions, {
+            invalidities: [],
+        })
+
+        const errors = validate(validation, {}, arg, contextualOptions)
+
+        if (errors) {
             return null
         } else {
-            addInvalidity(
-                result.originalInvalidities,
-                INVALID,
-                result.depth,
-                arg,
-                result.values
-            )
-            return result.originalInvalidities
+            addInvalidity(originalInvalidities, INVALID, depth, arg, values)
+            return originalInvalidities
         }
     })
 }
@@ -97,27 +101,37 @@ function every (validation) {
 
         const initialDepth = contextualOptions.depth || 0
         const invalidities = contextualOptions.invalidities || []
+        const innerInvalidities = []
 
         contextualOptions = Object.assign({}, contextualOptions, {
             depth: initialDepth + 1,
-            invalidities,
+            invalidities: innerInvalidities,
         })
 
         for (let i = 0; i < argsArray.length; i++) {
-            const initialInvaliditiesLength = invalidities.length
+            const initialInvaliditiesLength = innerInvalidities.length
             const arg = argsArray[i]
             const errors = validate(validation, {}, arg, contextualOptions)
             if (errors) {
                 setKey(
-                    invalidities,
+                    innerInvalidities,
                     initialInvaliditiesLength,
                     String(i),
                     initialDepth
                 )
-                if (!contextualOptions.greedy) { return invalidities }
+                if (!contextualOptions.greedy) {
+                    Array.prototype.push.apply(invalidities, innerInvalidities)
+                    return invalidities
+                }
             }
         }
-        return invalidities.length ? invalidities : null
+
+        if (innerInvalidities.length) {
+            Array.prototype.push.apply(invalidities, innerInvalidities)
+            return invalidities
+        } else {
+            return null
+        }
     })
 }
 
@@ -160,30 +174,6 @@ function some (validation) {
             return invalidities
         }
     })
-}
-
-function probe (validation, arg, contextualOptions) {
-
-    const probeInvalidities = []
-    contextualOptions = contextualOptions || {}
-    const originalInvalidities = contextualOptions.invalidities || []
-    const greedy = contextualOptions.greedy || false
-    const values = contextualOptions.values || false
-    const depth = contextualOptions.depth || 0
-
-    contextualOptions = Object.assign({}, contextualOptions, {
-        invalidities: probeInvalidities,
-    })
-
-    validate(validation, {}, arg, contextualOptions)
-
-    return {
-        probeInvalidities,
-        originalInvalidities,
-        greedy,
-        values,
-        depth,
-    }
 }
 
 function validate (
@@ -241,6 +231,8 @@ function validate (
 
         const nextDepth = depth + 1
 
+        const initialInvaliditiesLength = invalidities.length
+
         for (let key in arg) {
 
             const lastInvaliditiesLength = invalidities.length
@@ -250,7 +242,7 @@ function validate (
                 if (loose) { continue }
                 addInvalidity(
                     invalidities,
-                    VALIDATION_MISSING,
+                    PROPERTY_UNEXPECTED,
                     nextDepth,
                     arg[key],
                     values
@@ -277,11 +269,14 @@ function validate (
             }
         }
 
-        if (greedy && invalidities.length && label !== INVALID) {
-            addInvalidity(invalidities, label, depth, arg, values)
+        if (initialInvaliditiesLength < invalidities.length) {
+            if (greedy && label !== INVALID) {
+                addInvalidity(invalidities, label, depth, arg, values)
+            }
+            return invalidities
+        } else {
+            return null
         }
-
-        return invalidities.length ? invalidities : null
     }
 
     addInvalidity(invalidities, label, depth, arg, values)
