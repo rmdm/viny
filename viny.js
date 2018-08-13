@@ -77,7 +77,13 @@ function not (validation) {
         if (result.probeInvalidities.length) {
             return null
         } else {
-            addInvalidity(result.originalInvalidities, INVALID, result.depth, arg, result.values)
+            addInvalidity(
+                result.originalInvalidities,
+                INVALID,
+                result.depth,
+                arg,
+                result.values
+            )
             return result.originalInvalidities
         }
     })
@@ -102,7 +108,12 @@ function every (validation) {
             const arg = argsArray[i]
             const errors = validate(validation, {}, arg, contextualOptions)
             if (errors) {
-                setKey(invalidities, initialInvaliditiesLength, String(i), initialDepth)
+                setKey(
+                    invalidities,
+                    initialInvaliditiesLength,
+                    String(i),
+                    initialDepth
+                )
                 if (!contextualOptions.greedy) { return invalidities }
             }
         }
@@ -133,7 +144,12 @@ function some (validation) {
             const errors = validate(validation, {}, arg, contextualOptions)
             if (errors) {
                 nErrors++
-                setKey(innerInvalidities, initialInvaliditiesLength, String(i), initialDepth)
+                setKey(
+                    innerInvalidities,
+                    initialInvaliditiesLength,
+                    String(i),
+                    initialDepth
+                )
             }
         }
 
@@ -190,7 +206,8 @@ function validate (
 
     if (typeof validation === 'function') {
         if (validation[VINY_PARTIAL]) {
-            const errors = validation(arg, { greedy, values, invalidities, depth })
+            const errors = validation(
+                arg, { greedy, values, invalidities, depth })
             if (errors === null) {
                 return null
             } else {
@@ -231,7 +248,13 @@ function validate (
 
             if (!validation.hasOwnProperty(key)) {
                 if (loose) { continue }
-                addInvalidity(invalidities, VALIDATION_MISSING, nextDepth, arg[key], values)
+                addInvalidity(
+                    invalidities,
+                    VALIDATION_MISSING,
+                    nextDepth,
+                    arg[key],
+                    values
+                )
             } else {
                 validate(validation[key], {}, arg[key], {
                     greedy, values, invalidities, depth: nextDepth,
@@ -245,8 +268,10 @@ function validate (
         }
 
         for (let key in validation) {
-            if (validation.hasOwnProperty(key) && !hasEnumerableProp(arg, key) && (!optional || !optional[key])) {
-                addInvalidity(invalidities, PROPERTY_MISSING, nextDepth, null, false)
+            if (validation.hasOwnProperty(key) && !hasEnumerableProp(arg, key)
+                && (!optional || !optional[key])) {
+                addInvalidity(
+                    invalidities, PROPERTY_MISSING, nextDepth, null, false)
                 setKey(invalidities, invalidities.length - 1, key, depth)
                 if (!greedy) { return invalidities }
             }
