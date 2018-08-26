@@ -1,7 +1,7 @@
 const PROPERTY_UNEXPECTED = 'property_unexpected'
 const PROPERTY_MISSING = 'property_missing'
 const INVALID = 'invalid'
-const NOT_AN_ARRAY = 'not_an_array'
+const UNCOUNTABLE = 'uncountable'
 
 const VINY_PARTIAL = Symbol()
 
@@ -15,7 +15,6 @@ module.exports.every = every
 module.exports.some = some
 
 function viny (validation, localOptions) {
-
     return partial(function (arg, contextualOptions) {
         return validate(validation, localOptions, arg, contextualOptions)
     })
@@ -42,15 +41,15 @@ function and (...validations) {
 }
 
 function or (...validations) {
-    return partial(function (arg, contextualOptions) {
+    return partial(function (
+        arg,
+        { invalidities = [], greedy, values, depth } = {}
+    ) {
 
         const innerInvalidities = []
 
-        contextualOptions = contextualOptions || {}
-        const invalidities = contextualOptions.invalidities || []
-        contextualOptions = Object.assign({}, { contextualOptions }, {
-            invalidities: innerInvalidities,
-        })
+        const contextualOptions =
+            { invalidities: innerInvalidities, greedy, values, depth }
 
         let nErrors = 0
         for (let validation of validations) {
@@ -70,59 +69,41 @@ function or (...validations) {
 }
 
 function not (validation) {
-    return partial(function (arg, contextualOptions) {
+    return partial(function (
+        arg,
+        { invalidities = [], greedy, values, depth } = {}
+    ) {
 
-        contextualOptions = contextualOptions || {}
-
-        const originalInvalidities = contextualOptions.invalidities || []
-        const values = contextualOptions.values || false
-        const depth = contextualOptions.depth || 0
-
-        contextualOptions = Object.assign({}, contextualOptions, {
-            invalidities: [],
-        })
-
-        const errors = validate(validation, {}, arg, contextualOptions)
+        const errors = validate(validation, {}, arg, { greedy, values, depth })
 
         if (errors) {
             return null
         } else {
-            addInvalidity(originalInvalidities, INVALID, depth, arg, values)
-            return originalInvalidities
+            return addInvalidity(invalidities, INVALID, depth, arg, values)
         }
     })
 }
 
 function every (validation) {
-    return partial(function (argsArray, contextualOptions) {
-        if (!Array.isArray(argsArray)) { return [ invalid(NOT_AN_ARRAY, 0) ] }
+    return partial(function (
+        args,
+        { invalidities = [], greedy, values, depth = 0 } = {}
+    ) {
 
-        contextualOptions = contextualOptions || {}
+        if (!Array.isArray(args) && !isObject(args)) {
+            return addInvalidity(invalidities, UNCOUNTABLE, depth, args, values)
+        }
 
-        const initialDepth = contextualOptions.depth || 0
-        const invalidities = contextualOptions.invalidities || []
         const innerInvalidities = []
 
-        contextualOptions = Object.assign({}, contextualOptions, {
-            depth: initialDepth + 1,
-            invalidities: innerInvalidities,
-        })
+        const contextualOptions =
+            { invalidities: innerInvalidities, greedy, values, depth: depth }
 
-        for (let i = 0; i < argsArray.length; i++) {
-            const initialInvaliditiesLength = innerInvalidities.length
-            const arg = argsArray[i]
-            const errors = validate(validation, {}, arg, contextualOptions)
-            if (errors) {
-                setKey(
-                    innerInvalidities,
-                    initialInvaliditiesLength,
-                    String(i),
-                    initialDepth
-                )
-                if (!contextualOptions.greedy) {
-                    Array.prototype.push.apply(invalidities, innerInvalidities)
-                    return invalidities
-                }
+        for (let k in args) {
+            const errors = validate(
+                { [k]: validation }, {}, { [k]: args[k] }, contextualOptions)
+            if (errors && !greedy) {
+                break
             }
         }
 
@@ -136,38 +117,30 @@ function every (validation) {
 }
 
 function some (validation) {
-    return partial(function (argsArray, contextualOptions) {
-        if (!Array.isArray(argsArray)) { return [ invalid(NOT_AN_ARRAY, 0) ] }
+    return partial(function (
+        args,
+        { invalidities = [], greedy, values, depth = 0 } = {}
+    ) {
 
-        contextualOptions = contextualOptions || {}
+        if (!Array.isArray(args) && !isObject(args)) {
+            return addInvalidity(invalidities, UNCOUNTABLE, depth, args, values)
+        }
 
         const innerInvalidities = []
-        const initialDepth = contextualOptions.depth || 0
-        const invalidities = contextualOptions.invalidities || []
 
-        contextualOptions = Object.assign({}, contextualOptions, {
-            depth: initialDepth + 1,
-            invalidities: innerInvalidities,
-        })
+        const contextualOptions =
+            { invalidities: innerInvalidities, greedy, values, depth: depth }
 
         let nErrors = 0
-
-        for (let i = 0; i < argsArray.length; i++) {
-            const initialInvaliditiesLength = innerInvalidities.length
-            const arg = argsArray[i]
-            const errors = validate(validation, {}, arg, contextualOptions)
+        for (let k in args) {
+            const errors = validate(
+                { [k]: validation }, {}, { [k]: args[k] }, contextualOptions)
             if (errors) {
                 nErrors++
-                setKey(
-                    innerInvalidities,
-                    initialInvaliditiesLength,
-                    String(i),
-                    initialDepth
-                )
             }
         }
 
-        if (nErrors < argsArray.length) {
+        if (nErrors < Object.keys(args).length) {
             return null
         } else {
             Array.prototype.push.apply(invalidities, innerInvalidities)
@@ -178,18 +151,9 @@ function some (validation) {
 
 function validate (
     validation,
-    {
-        label = INVALID,
-        loose = false,
-        optional = null,
-    } = {},
+    { label = INVALID, loose = false, optional = null } = {},
     arg,
-    {
-        greedy = false,
-        values = false,
-        invalidities = [],
-        depth = 0,
-    } = {}
+    { greedy = false, values = false, invalidities = [], depth = 0 } = {},
 ) {
 
     if (validation === arg) { return null }
@@ -211,23 +175,12 @@ function validate (
             if (ok === true) {
                 return null
             } else {
-                addInvalidity(invalidities, label, depth, arg, values)
-                return invalidities
+                return addInvalidity(invalidities, label, depth, arg, values)
             }
         }
     }
 
-    if (optional) {
-        let o = {}
-        for (let field of optional) {
-            o[field] = true
-        }
-        optional = o
-    }
-
     if (isObject(validation) && isObject(arg)) {
-
-        let argKeysNumber = 0
 
         const nextDepth = depth + 1
 
@@ -235,8 +188,7 @@ function validate (
 
         for (let key in arg) {
 
-            const lastInvaliditiesLength = invalidities.length
-            argKeysNumber++
+            const prevInvaliditiesLength = invalidities.length
 
             if (!validation.hasOwnProperty(key)) {
                 if (loose) { continue }
@@ -253,24 +205,33 @@ function validate (
                 })
             }
 
-            if (lastInvaliditiesLength < invalidities.length) {
-                setKey(invalidities, lastInvaliditiesLength, key, depth)
+            if (prevInvaliditiesLength < invalidities.length) {
+                setKey(invalidities, prevInvaliditiesLength, key, depth)
                 if (!greedy) { return invalidities }
             }
         }
 
+        if (optional) {
+            let o = {}
+            for (let field of optional) {
+                o[field] = true
+            }
+            optional = o
+        } else {
+            optional = {}
+        }
+
         for (let key in validation) {
-            if (validation.hasOwnProperty(key) && !hasEnumerableProp(arg, key)
-                && (!optional || !optional[key])) {
-                addInvalidity(
-                    invalidities, PROPERTY_MISSING, nextDepth, null, false)
+            if (validation.hasOwnProperty(key) && !optional[key]
+                && !hasEnumerableProp(arg, key)) {
+                addInvalidity(invalidities, PROPERTY_MISSING, nextDepth)
                 setKey(invalidities, invalidities.length - 1, key, depth)
                 if (!greedy) { return invalidities }
             }
         }
 
         if (initialInvaliditiesLength < invalidities.length) {
-            if (greedy && label !== INVALID) {
+            if (label !== INVALID) {
                 addInvalidity(invalidities, label, depth, arg, values)
             }
             return invalidities
@@ -279,19 +240,14 @@ function validate (
         }
     }
 
-    addInvalidity(invalidities, label, depth, arg, values)
+    return addInvalidity(invalidities, label, depth, arg, values)
+}
 
+function addInvalidity (invalidities, error, depth = 0, value, includeValues) {
+    const path = new Array(depth)
+    const invalidity = includeValues ? { path, error, value } : { path, error }
+    invalidities.push(invalidity)
     return invalidities
-}
-
-function addInvalidity (invalidities, label, depth, value, includeValues) {
-    const invalidity = invalid(label, depth, value, includeValues)
-    invalidities.push(invalid(label, depth, value, includeValues))
-}
-
-function invalid (error, size = 0, value, includeValues) {
-    const path = new Array(size)
-    return includeValues ? { path: path, error, value } : { path: path, error }
 }
 
 function isObject (obj) {
