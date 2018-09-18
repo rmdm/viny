@@ -1,7 +1,7 @@
 viny
 ====
 
-`viny` is a tiny functional-style validator.
+`viny` is a tiny functional validator.
 
 Example
 =======

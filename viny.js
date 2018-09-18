@@ -1,9 +1,7 @@
 const PROPERTY_UNEXPECTED = 'property_unexpected'
 const PROPERTY_MISSING = 'property_missing'
 const INVALID = 'invalid'
-const UNCOUNTABLE = 'uncountable'
-
-const VINY_PARTIAL = Symbol()
+const NON_ITER = 'non_iterable'
 
 module.exports = viny
 module.exports.errors = errors
@@ -15,9 +13,9 @@ module.exports.every = every
 module.exports.some = some
 
 function viny (validation, localOptions) {
-    return partial(function (arg, contextualOptions) {
+    return function (arg, contextualOptions) {
         return validate(validation, localOptions, arg, contextualOptions)
-    })
+    }
 }
 
 function errors (validation, arg, contextualOptions) {
@@ -29,7 +27,7 @@ function ok (validation, arg) {
 }
 
 function and (...validations) {
-    return partial(function (arg, contextualOptions) {
+    return function (arg, contextualOptions) {
         for (let validation of validations) {
             const errors = validate(validation, {}, arg, contextualOptions)
             if (errors) {
@@ -37,19 +35,13 @@ function and (...validations) {
             }
         }
         return null
-    })
+    }
 }
 
 function or (...validations) {
-    return partial(function (
-        arg,
-        { invalidities = [], greedy, values, depth } = {}
-    ) {
+    return function (arg, { invalidities = [], greedy, values, depth } = {}) {
 
-        const innerInvalidities = []
-
-        const contextualOptions =
-            { invalidities: innerInvalidities, greedy, values, depth }
+        const contextualOptions = { invalidities: [], greedy, values, depth }
 
         let nErrors = 0
         for (let validation of validations) {
@@ -59,45 +51,31 @@ function or (...validations) {
             }
         }
 
-        if (nErrors < validations.length) {
-            return null
-        } else {
-            Array.prototype.push.apply(invalidities, innerInvalidities)
-            return invalidities
-        }
-    })
+        return nErrors < validations.length
+            ? null
+            : applyPush(invalidities, contextualOptions.invalidities)
+    }
 }
 
 function not (validation) {
-    return partial(function (
-        arg,
-        { invalidities = [], greedy, values, depth } = {}
-    ) {
+    return function (arg, { invalidities = [], greedy, values, depth } = {}) {
 
         const errors = validate(validation, {}, arg, { greedy, values, depth })
 
-        if (errors) {
-            return null
-        } else {
-            return addInvalidity(invalidities, INVALID, depth, arg, values)
-        }
-    })
+        return errors
+            ? null
+            : addInvalidity(invalidities, INVALID, depth, arg, values)
+    }
 }
 
 function every (validation) {
-    return partial(function (
-        args,
-        { invalidities = [], greedy, values, depth = 0 } = {}
-    ) {
+    return function (args, { invalidities = [], greedy, values, depth } = {}) {
 
         if (!Array.isArray(args) && !isObject(args)) {
-            return addInvalidity(invalidities, UNCOUNTABLE, depth, args, values)
+            return addInvalidity(invalidities, NON_ITER, depth, args, values)
         }
 
-        const innerInvalidities = []
-
-        const contextualOptions =
-            { invalidities: innerInvalidities, greedy, values, depth: depth }
+        const contextualOptions = { invalidities: [], greedy, values, depth }
 
         for (let k in args) {
             const errors = validate(
@@ -107,29 +85,20 @@ function every (validation) {
             }
         }
 
-        if (innerInvalidities.length) {
-            Array.prototype.push.apply(invalidities, innerInvalidities)
-            return invalidities
-        } else {
-            return null
-        }
-    })
+        return contextualOptions.invalidities.length
+            ? applyPush(invalidities, contextualOptions.invalidities)
+            : null
+    }
 }
 
 function some (validation) {
-    return partial(function (
-        args,
-        { invalidities = [], greedy, values, depth = 0 } = {}
-    ) {
+    return function (args, { invalidities = [], greedy, values, depth } = {}) {
 
         if (!Array.isArray(args) && !isObject(args)) {
-            return addInvalidity(invalidities, UNCOUNTABLE, depth, args, values)
+            return addInvalidity(invalidities, NON_ITER, depth, args, values)
         }
 
-        const innerInvalidities = []
-
-        const contextualOptions =
-            { invalidities: innerInvalidities, greedy, values, depth: depth }
+        const contextualOptions = { invalidities: [], greedy, values, depth }
 
         let nErrors = 0
         for (let k in args) {
@@ -140,13 +109,10 @@ function some (validation) {
             }
         }
 
-        if (nErrors < Object.keys(args).length) {
-            return null
-        } else {
-            Array.prototype.push.apply(invalidities, innerInvalidities)
-            return invalidities
-        }
-    })
+        return nErrors < Object.keys(args).length
+            ? null
+            : applyPush(invalidities, contextualOptions.invalidities)
+    }
 }
 
 function validate (
@@ -159,24 +125,16 @@ function validate (
     if (validation === arg) { return null }
 
     if (typeof validation === 'function') {
-        if (validation[VINY_PARTIAL]) {
-            const errors = validation(
-                arg, { greedy, values, invalidities, depth })
-            if (errors === null) {
-                return null
-            } else {
-                if (greedy && label !== INVALID) {
-                    addInvalidity(invalidities, label, depth, arg, values)
-                }
-                return invalidities
+        const result = validation(arg, { greedy, values, invalidities, depth })
+        if (result === null || result === true) {
+            return null
+        } else if (Array.isArray(result)) {
+            if (greedy && label !== INVALID) {
+                addInvalidity(invalidities, label, depth, arg, values)
             }
+            return invalidities
         } else {
-            const ok = validation(arg)
-            if (ok === true) {
-                return null
-            } else {
-                return addInvalidity(invalidities, label, depth, arg, values)
-            }
+            return addInvalidity(invalidities, label, depth, arg, values)
         }
     }
 
@@ -271,7 +229,7 @@ function hasEnumerableProp (obj, prop) {
     return false
 }
 
-function partial (fn) {
-    Object.defineProperty(fn, VINY_PARTIAL, { value: true })
-    return fn
+function applyPush (to, from) {
+    Array.prototype.push.apply(to, from)
+    return to
 }

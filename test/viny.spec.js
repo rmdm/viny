@@ -701,6 +701,41 @@ describe('viny', function () {
                 { path: [ 'e' ], error: 'property_missing' },
             ])
         })
+
+        it('returns values with compound validators when values options passed',
+            function () {
+
+            const validation = viny({
+                a: viny.or(
+                    viny(1, { label: 'not_one' }),
+                    viny(2, { label: 'not_two' }),
+                    viny(3, { label: 'not_three' })
+                ),
+                b: viny.and(b => b > 5, b => b < 10),
+                c: viny.not(2),
+                d: viny.every(viny.or(true, false)),
+                e: viny.some(10),
+            })
+
+            const result = viny.errors(validation, {
+                a: 0,
+                b: 1,
+                c: 2,
+                d: [ 3, ],
+                e: [ 4, ],
+            }, { values: true, greedy: true })
+
+            assert.deepStrictEqual(result, [
+                { path: [ 'a' ], error: 'not_one', value: 0 },
+                { path: [ 'a' ], error: 'not_two', value: 0 },
+                { path: [ 'a' ], error: 'not_three', value: 0 },
+                { path: [ 'b' ], error: 'invalid', value: 1 },
+                { path: [ 'c' ], error: 'invalid', value: 2 },
+                { path: [ 'd', '0' ], error: 'invalid', value: 3 },
+                { path: [ 'd', '0' ], error: 'invalid', value: 3 },
+                { path: [ 'e', '0' ], error: 'invalid', value: 4 },
+            ])
+        })
     })
 
     describe('and method', function () {
@@ -996,7 +1031,7 @@ describe('viny', function () {
                 const validation = viny.every(10)
 
                 assert.deepStrictEqual(validation(10),
-                    [ { path: [], error: 'uncountable' } ])
+                    [ { path: [], error: 'non_iterable' } ])
             })
 
             context('when array passed', function () {
@@ -1193,7 +1228,7 @@ describe('viny', function () {
                 const validation = viny.some(10)
 
                 assert.deepStrictEqual(validation(10),
-                    [ { path: [], error: 'uncountable' } ])
+                    [ { path: [], error: 'non_iterable' } ])
             })
 
             context('when array passed', function () {
