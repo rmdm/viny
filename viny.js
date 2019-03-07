@@ -179,12 +179,14 @@ function validate (
             optional = {}
         }
 
-        for (let key in validation) {
-            if (validation.hasOwnProperty(key) && !optional[key]
-                && !hasEnumerableProp(arg, key)) {
-                addInvalidity(invalidities, PROPERTY_MISSING, nextDepth)
-                setKey(invalidities, invalidities.length - 1, key, depth)
-                if (!greedy) { return invalidities }
+        if (!loose) {
+            for (let key in validation) {
+                if (validation.hasOwnProperty(key) && !optional[key]
+                    && !hasEnumerableProp(arg, key)) {
+                    addInvalidity(invalidities, PROPERTY_MISSING, nextDepth)
+                    setKey(invalidities, invalidities.length - 1, key, depth)
+                    if (!greedy) { return invalidities }
+                }
             }
         }
 

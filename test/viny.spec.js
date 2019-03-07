@@ -219,6 +219,16 @@ describe('viny', function () {
             assert.deepStrictEqual(validation({ a: 'a', b: 2, c: 3 }),
                 [ { path: [ 'a' ], error: 'invalid' } ])
         })
+
+        it('does not return errors when object has less fields than validation', function () {
+
+            const validation = viny(
+                { a: a => typeof a === 'number'},
+                { loose: true }
+            )
+
+            assert.deepStrictEqual(validation({}), null)
+        })
     })
 
     describe('produced function with optional option', function () {
